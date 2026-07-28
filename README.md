@@ -1,5 +1,11 @@
 # SimpleChatbot
 
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Amazon Bedrock](https://img.shields.io/badge/Amazon%20Bedrock-Anthropic%20Claude-orange.svg)](https://aws.amazon.com/bedrock/)
+[![Flask](https://img.shields.io/badge/Flask-3.0%2B-green.svg)](https://flask.palletsprojects.com/)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
 A production-ready Python chatbot powered by Amazon Bedrock Anthropic Claude models. Features both a CLI interface for quick testing and a Flask-based web GUI with a modern, responsive design.
 
 ## Features
