@@ -186,3 +186,99 @@ server {
 - **Horizontal**: Add more Gunicorn workers or ECS tasks
 - **Session state**: Current implementation uses in-memory conversation history; for multi-instance deployments, consider using DynamoDB or ElastiCache for session state
 - **Rate limiting**: Implement per-user rate limiting to control Bedrock API costs
+
+---
+
+## Option 5: Amazon Bedrock AgentCore Runtime (Recommended)
+
+Deploy the chatbot as a managed agent on AgentCore Runtime using the Strands Agents framework and the AgentCore CLI.
+
+### Architecture
+
+```
+Web GUI / CLI → chatbot.py → AgentCore Runtime → mainagent (Strands) → Bedrock API
+```
+
+### Prerequisites
+
+- Node.js 20+ (for AgentCore CLI)
+- Python 3.10+
+- AWS CLI with valid credentials
+- Claude Sonnet 4.6 model access enabled in Bedrock console
+
+### Quick Deploy
+
+```bash
+# Install AgentCore CLI
+npm install -g @aws/agentcore
+
+# Navigate to the agent directory
+cd agents/mainagent
+
+# Test locally first
+agentcore dev --no-browser
+
+# Deploy to AWS
+agentcore deploy
+
+# Invoke your deployed agent
+agentcore invoke '{"prompt": "Hello from SimpleChatbot!"}'
+```
+
+### Or use the setup script:
+
+```bash
+# macOS/Linux
+chmod +x scripts/setup_main_agents.sh
+./scripts/setup_main_agents.sh
+
+# Windows
+scripts\setup_main_agents.bat
+```
+
+### Monitoring and Logs
+
+```bash
+# Check deployment status
+agentcore status
+
+# Stream live logs
+agentcore logs
+
+# Search logs for errors
+agentcore logs --filter "ERROR"
+```
+
+### Key Endpoints (Auto-managed by SDK)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/invocations` | POST | Main agent endpoint |
+| `/ping` | GET | Health check |
+
+### Request Format
+
+```json
+{
+    "prompt": "What is Amazon Bedrock?"
+}
+```
+
+### Response Format
+
+```json
+{
+    "result": "Amazon Bedrock is a fully managed service...",
+    "model": "us.anthropic.claude-sonnet-4-6",
+    "status": "success"
+}
+```
+
+### Cleanup
+
+```bash
+agentcore remove all
+agentcore deploy  # Tears down removed resources
+```
+
+For full deployment documentation, see [scripts/README.md](../scripts/README.md).
