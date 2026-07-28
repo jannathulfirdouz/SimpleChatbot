@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}SimpleChatbot - Build the Builder Workshop{% endblock %}
+
+{% block body %}
+<div class="app-container">
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="SimpleChatbot Logo" class="header-logo">
+            <div>
+                <div class="header-title">SimpleChatbot</div>
+                <div class="header-subtitle">Build the Builder Workshop</div>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="model-selector">
+                <select id="model-select" aria-label="Select AI model">
+                    {% for model in models %}
+                    <option value="{{ model.key }}"{% if loop.first %} selected{% endif %}>
+                        {{ model.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button class="btn btn-clear" id="clear-btn" aria-label="Clear conversation">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                Clear
+            </button>
+        </div>
+    </header>
+
+    <!-- Chat Area -->
+    <main class="chat-area" id="chat-area" role="log" aria-label="Chat messages" aria-live="polite">
+        <!-- Welcome Message -->
+        <div class="welcome-message" id="welcome-message">
+            <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="" class="welcome-icon">
+            <h1 class="welcome-title">Welcome to SimpleChatbot</h1>
+            <p class="welcome-subtitle">
+                Powered by Amazon Bedrock Anthropic Claude models.
+                Ask me anything and I'll do my best to help!
+            </p>
+            <span class="welcome-badge">Build the Builder Workshop</span>
+        </div>
+    </main>
+
+    <!-- Input Area -->
+    <div class="input-area">
+        <div class="input-container">
+            <div class="input-wrapper">
+                <textarea
+                    id="message-input"
+                    placeholder="Type your message... (Shift+Enter for new line)"
+                    rows="1"
+                    aria-label="Message input"
+                    autocomplete="off"
+                ></textarea>
+            </div>
+            <button class="btn btn-send" id="send-btn" aria-label="Send message">
+                Send
+            </button>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <span>SimpleChatbot &mdash; Powered by <a href="https://aws.amazon.com/bedrock/" target="_blank" rel="noopener">Amazon Bedrock</a> | Build the Builder Workshop</span>
+    </footer>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+{% endblock %}

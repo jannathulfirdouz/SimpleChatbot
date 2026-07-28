@@ -1,0 +1,81 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "simplechatbot"
+version = "1.0.0"
+description = "A production-ready Python chatbot powered by Amazon Bedrock Anthropic Claude models"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "SimpleChatbot Team"},
+]
+keywords = ["chatbot", "aws", "bedrock", "anthropic", "claude", "ai"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "boto3>=1.35.0",
+    "flask>=3.0.0",
+    "rich>=13.7.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "black>=24.0.0",
+    "flake8>=7.0.0",
+    "isort>=5.13.0",
+    "mypy>=1.8.0",
+    "boto3-stubs[bedrock-runtime]>=1.35.0",
+]
+
+[project.scripts]
+simplechatbot = "simplechatbot.cli:main"
+simplechatbot-web = "simplechatbot.web.app:main"
+
+[project.urls]
+Homepage = "https://github.com/simplechatbot/simplechatbot"
+Documentation = "https://github.com/simplechatbot/simplechatbot/tree/main/docs"
+Repository = "https://github.com/simplechatbot/simplechatbot"
+Issues = "https://github.com/simplechatbot/simplechatbot/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"simplechatbot.web" = [
+    "static/**/*",
+    "templates/**/*",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
