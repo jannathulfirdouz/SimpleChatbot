@@ -1,11 +1,16 @@
 """Core chatbot logic and SimpleChatbot class.
 
 This module implements the SimpleChatbot class that interfaces with
-Amazon Bedrock's Converse API to generate responses using Anthropic
-Claude models. It manages conversation history and provides methods
-for both single responses and interactive chat loops.
+Amazon Bedrock's Converse API or AgentCore Runtime to generate responses
+using Anthropic Claude models. It manages conversation history and provides
+methods for both single responses and interactive chat loops.
+
+Supports two modes:
+    - Direct: Calls Bedrock Converse API directly (default)
+    - AgentCore: Routes requests through deployed AgentCore Runtime agent
 """
 
+import json
 import logging
 import os
 from typing import Dict, List, Optional
@@ -20,6 +25,7 @@ from simplechatbot.config import (
     DEFAULT_MODEL_ID,
     DEFAULT_MODEL_KEY,
     SYSTEM_PROMPT,
+    AgentCoreSettings,
     ChatbotSettings,
 )
 
@@ -44,6 +50,7 @@ class SimpleChatbot:
         model_key: str = DEFAULT_MODEL_KEY,
         settings: Optional[ChatbotSettings] = None,
         system_prompt: Optional[str] = None,
+        agentcore_settings: Optional[AgentCoreSettings] = None,
     ) -> None:
         """Initialize the SimpleChatbot.
 
@@ -52,6 +59,7 @@ class SimpleChatbot:
                        Defaults to Claude Sonnet 4.6.
             settings: Optional ChatbotSettings instance. Uses defaults if None.
             system_prompt: Optional custom system prompt. Uses default if None.
+            agentcore_settings: Optional AgentCoreSettings. Uses defaults if None.
 
         Raises:
             ValueError: If the model_key is not recognized.
@@ -68,9 +76,20 @@ class SimpleChatbot:
         self.settings: ChatbotSettings = settings or ChatbotSettings()
         self.system_prompt: str = system_prompt or SYSTEM_PROMPT
         self.conversation_history: List[Dict] = []
+        self.agentcore_settings: AgentCoreSettings = agentcore_settings or AgentCoreSettings()
 
-        # Initialize the Bedrock Runtime client
-        self._client = self._create_bedrock_client()
+        # Initialize the appropriate client based on mode
+        if self.agentcore_settings.enabled and self.agentcore_settings.agent_runtime_arn:
+            self._agentcore_client = self._create_agentcore_client()
+            self._client = None
+            self._mode = "agentcore"
+            logger.info("SimpleChatbot initialized in AgentCore mode (ARN=%s)",
+                       self.agentcore_settings.agent_runtime_arn)
+        else:
+            self._client = self._create_bedrock_client()
+            self._agentcore_client = None
+            self._mode = "direct"
+            logger.info("SimpleChatbot initialized in direct Bedrock mode")
 
     def _create_bedrock_client(self):
         """Create and return a boto3 Bedrock Runtime client.
@@ -130,6 +149,52 @@ class SimpleChatbot:
                 f"Failed to initialize Bedrock client: {e}"
             ) from e
 
+    def _create_agentcore_client(self):
+        """Create and return a boto3 AgentCore client.
+
+        Returns:
+            A boto3 client for the bedrock-agentcore service.
+
+        Raises:
+            ConnectionError: If credentials cannot be found.
+        """
+        try:
+            access_key = os.environ.get('AWS_ACCESS_KEY_ID')
+            secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
+            session_token = os.environ.get('AWS_SESSION_TOKEN')
+            region = self.agentcore_settings.region
+
+            if access_key and secret_key:
+                client = boto3.client(
+                    'bedrock-agentcore',
+                    region_name=region,
+                    aws_access_key_id=access_key,
+                    aws_secret_access_key=secret_key,
+                    aws_session_token=session_token if session_token else None,
+                )
+            else:
+                session = boto3.Session(
+                    profile_name=AWS_PROFILE,
+                    region_name=region,
+                )
+                client = session.client("bedrock-agentcore")
+
+            logger.info("AgentCore client initialized (region=%s)", region)
+            return client
+
+        except Exception as e:
+            raise ConnectionError(
+                f"Failed to initialize AgentCore client: {e}"
+            ) from e
+
+    def get_mode(self) -> str:
+        """Get the current operating mode.
+
+        Returns:
+            'agentcore' if using AgentCore Runtime, 'direct' if using Bedrock directly.
+        """
+        return self._mode
+
     def set_model(self, model_key: str) -> str:
         """Switch to a different Anthropic model.
 
@@ -156,8 +221,7 @@ class SimpleChatbot:
     def get_response(self, user_message: str) -> str:
         """Send a message to the model and get a response.
 
-        This method adds the user message to conversation history,
-        calls the Bedrock Converse API, and returns the assistant's response.
+        Routes to either AgentCore Runtime or direct Bedrock based on mode.
 
         Args:
             user_message: The user's input message.
@@ -170,6 +234,93 @@ class SimpleChatbot:
         """
         if not user_message.strip():
             return "Please enter a message."
+
+        if self._mode == "agentcore":
+            return self._get_response_agentcore(user_message)
+        else:
+            return self._get_response_direct(user_message)
+
+    def _get_response_agentcore(self, user_message: str) -> str:
+        """Send a message via AgentCore Runtime.
+
+        Args:
+            user_message: The user's input message.
+
+        Returns:
+            The agent's response text.
+
+        Raises:
+            RuntimeError: If the AgentCore invocation fails.
+        """
+        try:
+            payload = json.dumps({"prompt": user_message}).encode()
+
+            response = self._agentcore_client.invoke_agent_runtime(
+                agentRuntimeArn=self.agentcore_settings.agent_runtime_arn,
+                runtimeSessionId="simplechatbot-" + str(hash(id(self)))[-10:].replace("-", "0") + "a" * 23,
+                payload=payload,
+            )
+
+            # Read the streaming response
+            response_body = response['response'].read()
+            response_text = ""
+
+            # Parse SSE streaming response
+            for line in response_body.decode("utf-8").split("\n"):
+                if line.startswith("data: "):
+                    try:
+                        data = json.loads(line[6:])
+                        event = data.get("event", {})
+                        delta = event.get("contentBlockDelta", {}).get("delta", {})
+                        if "text" in delta:
+                            response_text += delta["text"]
+                    except json.JSONDecodeError:
+                        continue
+
+            if not response_text:
+                # Try parsing as a direct JSON response
+                try:
+                    data = json.loads(response_body.decode("utf-8"))
+                    response_text = data.get("result", data.get("message", ""))
+                except json.JSONDecodeError:
+                    response_text = response_body.decode("utf-8")
+
+            # Add to conversation history for context display
+            self.conversation_history.append({
+                "role": "user",
+                "content": [{"text": user_message}],
+            })
+            self.conversation_history.append({
+                "role": "assistant",
+                "content": [{"text": response_text}],
+            })
+            self._trim_history()
+
+            return response_text
+
+        except ClientError as e:
+            error_code = e.response["Error"]["Code"]
+            error_message = e.response["Error"]["Message"]
+            raise RuntimeError(
+                f"AgentCore invocation error ({error_code}): {error_message}"
+            ) from e
+        except Exception as e:
+            raise RuntimeError(
+                f"Unexpected error invoking AgentCore agent: {e}"
+            ) from e
+
+    def _get_response_direct(self, user_message: str) -> str:
+        """Send a message directly to Bedrock Converse API.
+
+        Args:
+            user_message: The user's input message.
+
+        Returns:
+            The model's response text.
+
+        Raises:
+            RuntimeError: If the API call fails or response is malformed.
+        """
 
         # Add user message to history
         self.conversation_history.append({
@@ -289,10 +440,11 @@ class SimpleChatbot:
         """Get information about the currently selected model.
 
         Returns:
-            Dictionary with model_key, model_id, name, and description.
+            Dictionary with model_key, model_id, name, description, and mode.
         """
         model_info = AVAILABLE_MODELS[self.model_key].copy()
         model_info["model_key"] = self.model_key
+        model_info["mode"] = self._mode
         return model_info
 
 

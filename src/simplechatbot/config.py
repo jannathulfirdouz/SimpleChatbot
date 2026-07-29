@@ -112,6 +112,25 @@ class FlaskSettings:
     debug: bool = os.getenv("FLASK_DEBUG", "false").lower() == "true"
 
 
+# ---------------------------------------------------------------------------
+# AgentCore Runtime Settings
+# ---------------------------------------------------------------------------
+
+@dataclass
+class AgentCoreSettings:
+    """Configuration settings for AgentCore Runtime integration.
+
+    Attributes:
+        enabled: Whether to route requests through AgentCore Runtime.
+        agent_runtime_arn: The ARN of the deployed AgentCore agent runtime.
+        region: AWS region where the agent is deployed.
+    """
+
+    enabled: bool = os.getenv("AGENTCORE_ENABLED", "false").lower() == "true"
+    agent_runtime_arn: str = os.getenv("AGENTCORE_AGENT_ARN", "")
+    region: str = os.getenv("AGENTCORE_REGION", AWS_REGION)
+
+
 def get_model_id(model_key: str) -> str:
     """Get the Bedrock model ID for a given model key.
 
